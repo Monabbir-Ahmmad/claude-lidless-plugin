@@ -1,0 +1,14 @@
+{
+  "name": "tajbir-tools",
+  "description": "Tajbir's Claude Code plugins",
+  "owner": {
+    "name": "Tajbir"
+  },
+  "plugins": [
+    {
+      "name": "lidless",
+      "source": "./",
+      "description": "Keep your laptop awake and online with the lid closed, only while you ask for it, so Claude Code Remote Control keeps working from your phone."
+    }
+  ]
+}
