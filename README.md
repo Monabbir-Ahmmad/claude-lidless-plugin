@@ -73,8 +73,6 @@ To undo the setup later, run `/lidless-setup remove` on macOS, or `/lidless-setu
 
 If another plugin uses one of these names, the long form always works, for example `/lidless:lidless-off`.
 
-A typed command is answered at once, in about a second, without waiting for Claude to write a reply. Claude Code shows such an answer as a stopped prompt, so it begins with the line "UserPromptExpansion operation blocked by hook:" and ends with the command you typed. That wording comes from Claude Code and is expected. Nothing went wrong.
-
 ### Examples
 
 Three things to try, as commands or in plain words from your phone:
@@ -127,9 +125,9 @@ This section lists everything the plugin runs, changes and writes, so you can ch
 
 **Network.** None. Lidless opens no connections, sends nothing and downloads nothing.
 
-**Data.** Claude Code hands each hook a block of input that can include your prompt or a tool result. The hook scripts take these things from it and discard the rest: the session id, the reason a session ended, whether background tasks or scheduled wake-ups exist, and, when you type a Lidless command, its name and arguments. Nothing from the conversation is written to disk or sent anywhere. Per session Lidless stores the Claude Code process id, that process's start time, the session id, the time limit, and one word: busy, waiting or idle.
+**Data.** Claude Code hands each hook a block of input that can include your prompt or a tool result. The hook script takes three things from it and discards the rest: the session id, the reason a session ended, and whether background tasks or scheduled wake-ups exist. Nothing from the conversation is written to disk or sent anywhere. Per session Lidless stores the Claude Code process id, that process's start time, the session id, the time limit, and one word: busy, waiting or idle.
 
-**Hooks.** All seven run a script from the plugin folder. The first six below end after one file check while Lidless is off. The last one only runs when you type one of the four Lidless commands.
+**Hooks.** All six run a script from the plugin folder and end after one file check while Lidless is off.
 
 | Hook | What it does while Lidless is on |
 | --- | --- |
@@ -138,7 +136,6 @@ This section lists everything the plugin runs, changes and writes, so you can ch
 | PostToolUse | Marks the session busy. |
 | Stop, StopFailure | Marks the session idle, or waiting when background work is still running. |
 | SessionEnd | Flags the session as ended so Lidless resets. |
-| UserPromptExpansion | On or off, and only for `/lidless`, `/lidless-off`, `/lidless-status` and `/lidless-setup`: runs the command, shows its report and stops the prompt there, so no reply from Claude is needed. Anything unusual in the arguments is left to Claude instead. |
 
 **Commands.** The four commands and the plain language skill may run one thing without asking: the plugin's own `scripts/lidless.sh`. They have no other pre-approved tools. Claude only turns Lidless on, extends it or changes a setting when you ask.
 
