@@ -67,6 +67,9 @@ case $ev in
     ;;
 
   prompt)
+    # A Lidless command is answered by command.sh without a model turn, so no
+    # Stop event follows it and the session must not be marked busy here.
+    case $input in *'"prompt":"/lidless'*|*'"prompt": "/lidless'*) exit 0 ;; esac
     echo busy > "$mark" 2>/dev/null
     find_mine || exit 0
     now=$(date +%s)

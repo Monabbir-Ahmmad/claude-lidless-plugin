@@ -1,5 +1,5 @@
 {
-  "description": "Lidless: tracks busy and idle while it is on, and resets itself when a session ends. Each hook ends after one file check while Lidless is off.",
+  "description": "Lidless: tracks busy and idle while it is on, and resets itself when a session ends. Each of those hooks ends after one file check while Lidless is off. One more hook answers the typed Lidless commands directly, without a model turn.",
   "hooks": {
     "SessionStart": [
       {
@@ -9,6 +9,19 @@
             "shell": "bash",
             "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/session-start.sh\"",
             "timeout": 60
+          }
+        ]
+      }
+    ],
+    "UserPromptExpansion": [
+      {
+        "matcher": "^(lidless:)?lidless(-off|-status|-setup)?$",
+        "hooks": [
+          {
+            "type": "command",
+            "shell": "bash",
+            "command": "sh \"${CLAUDE_PLUGIN_ROOT}/scripts/command.sh\"",
+            "timeout": 30
           }
         ]
       }
