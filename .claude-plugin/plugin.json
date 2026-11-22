@@ -1,7 +1,7 @@
 {
   "name": "lidless",
   "displayName": "Lidless",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Keep your laptop awake and online with the lid closed, only while you ask for it, so Claude Code Remote Control keeps working from your phone. Resets itself when the session ends. Windows, Linux and macOS.",
   "author": {
     "name": "Tajbir"
