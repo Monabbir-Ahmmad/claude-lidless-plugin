@@ -26,11 +26,20 @@ $ScriptDir = $PSScriptRoot
 if (-not $ScriptDir) { $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path }
 
 # The state folder: "home=<folder>" when given, else the usual place.
+# "from=<id>,<id>" lists the Windows process ids of the Git Bash shells above
+# lidless.sh, nearest first. Find-Claude uses them when its own walk fails.
 $CmdArgs = @()
 $LD = ''
+$StartHints = @()
 foreach ($a in $args) {
     $t = [string]$a
-    if ($LD -eq '' -and $t -like 'home=*') { $LD = $t.Substring(5) } else { $CmdArgs += $t }
+    if ($LD -eq '' -and $t -like 'home=*') { $LD = $t.Substring(5) }
+    elseif ($CmdArgs.Count -eq 0 -and $t -like 'from=*') {
+        foreach ($h in $t.Substring(5).Split(',')) {
+            if ($h -match '^\d{1,9}$' -and $StartHints.Count -lt 25) { $StartHints += [int]$h }
+        }
+    }
+    else { $CmdArgs += $t }
 }
 if (-not $LD -and $env:LIDLESS_HOME) { $LD = $env:LIDLESS_HOME }
 if (-not $LD) { $LD = Join-Path (Join-Path $env:USERPROFILE '.claude') 'lidless' }
@@ -224,23 +233,37 @@ function Test-IsClaude($proc) {
     return $false
 }
 
-# Walk up the parent processes until the Claude Code process is found. 0 means not found.
-function Find-Claude {
-    $map = @{}
-    foreach ($p in (Get-CimInstance -ClassName Win32_Process -Property ProcessId, ParentProcessId, Name, CommandLine, CreationDate)) {
-        $map[[int]$p.ProcessId] = $p
-    }
-    $cur = [int]$PID
+# Walk up the parent processes from one process until the Claude Code process
+# is found. 0 means not found. The start process itself only counts when asked.
+function Find-ClaudeFrom($map, [int]$start, [bool]$startCounts) {
+    $cur = $start
     $hops = 0
     while ($hops -lt 25 -and $map.ContainsKey($cur)) {
         $p = $map[$cur]
-        if ($hops -gt 0 -and (Test-IsClaude $p)) { return [int]$p.ProcessId }
+        if (($hops -gt 0 -or $startCounts) -and (Test-IsClaude $p)) { return [int]$p.ProcessId }
         $parent = [int]$p.ParentProcessId
         if ($parent -le 4 -or -not $map.ContainsKey($parent)) { break }
         # A parent that started after its child is not the real parent: the id was reused.
         if ($null -ne $p.CreationDate -and $null -ne $map[$parent].CreationDate -and $map[$parent].CreationDate -gt $p.CreationDate) { break }
         $cur = $parent
         $hops++
+    }
+    return 0
+}
+
+# The Claude Code process that ran this command. 0 means not found.
+function Find-Claude {
+    $map = @{}
+    foreach ($p in (Get-CimInstance -ClassName Win32_Process -Property ProcessId, ParentProcessId, Name, CommandLine, CreationDate)) {
+        $map[[int]$p.ProcessId] = $p
+    }
+    $found = Find-ClaudeFrom $map ([int]$PID) $false
+    if ($found -gt 0) { return $found }
+    # Under Git Bash the walk can stop at a parent that has already exited.
+    # Try again from each shell that lidless.sh named.
+    foreach ($h in $StartHints) {
+        $found = Find-ClaudeFrom $map $h $true
+        if ($found -gt 0) { return $found }
     }
     return 0
 }

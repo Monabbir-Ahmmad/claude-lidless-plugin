@@ -46,9 +46,28 @@ case $os in
       MSYS2_ARG_CONV_EXCL='*'
       export MSYS_NO_PATHCONV MSYS2_ARG_CONV_EXCL
     fi
+    # Git Bash starts a program through a short-lived copy of itself, so the
+    # parent that Windows records for this shell may no longer exist, and
+    # PowerShell cannot walk up from there to the Claude Code process. Hand it
+    # the Windows process ids of the shells above this one, nearest first.
+    from=
+    p=$$
+    n=0
+    while [ "$n" -lt 25 ]; do
+      pp=
+      { read -r pp < "/proc/$p/ppid"; } 2>/dev/null || break
+      case $pp in ''|*[!0-9]*) break ;; esac
+      [ "$pp" -gt 1 ] || break
+      w=
+      { read -r w < "/proc/$pp/winpid"; } 2>/dev/null || break
+      case $w in ''|*[!0-9]*) break ;; esac
+      from=${from:+$from,}$w
+      p=$pp
+      n=$((n + 1))
+    done
     psexe=powershell.exe
     command -v powershell.exe > /dev/null 2>&1 || psexe="${SYSTEMROOT:-C:/Windows}/System32/WindowsPowerShell/v1.0/powershell.exe"
-    "$psexe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ps1" "home=$home" "$@" < /dev/null
+    "$psexe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$ps1" "home=$home" "from=$from" "$@" < /dev/null
     exit 0
     ;;
   *)
