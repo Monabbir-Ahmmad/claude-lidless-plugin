@@ -12,6 +12,8 @@
 #   os_battery          prints "<percent> ac", "<percent> battery" or "none"
 #   os_boot_reset       prints installed, missing or notneeded
 #   os_setup            print the one-time setup command
+#   os_shutdown_check   true when this system can be shut down from here
+#   os_poweroff         shut the computer down now
 # A failing os_* function leaves a message for the user in OS_ERR.
 
 SESS=$LD/sessions
@@ -22,6 +24,9 @@ LOG=$LD/lidless.log
 CFG=$LD/config.json
 OS_ERR=
 LAST_REASON=
+# Seconds between the shutdown command and the computer going down. Long enough
+# for the reply to reach a phone, and for the user to change their mind.
+SHUTDOWN_DELAY=60
 
 say() { printf '%s\n' "$*"; }
 
@@ -742,8 +747,81 @@ cmd_reconcile() {
   return 0
 }
 
+# ---------------------------------------------------------------- shutdown
+# A small helper waits out the delay and then shuts the computer down.
+# run/shutdown.pid names it, so "cancel" can stop it.
+shutdown_waiting() {
+  [ -f "$RUN/shutdown.pid" ] || return 1
+  _hp=; _hs=
+  IFS='|' read -r _hp _hs < "$RUN/shutdown.pid"
+  is_uint "$_hp" && proc_alive "$_hp" "$_hs"
+}
+
+cmd_shutdown() {
+  case ${1:-} in
+    cancel|abort|stop)
+      if shutdown_waiting; then
+        kill -TERM "$_hp" 2>/dev/null
+        rm -f "$RUN/shutdown.pid"
+        log "SHUTDOWN cancelled by the user"
+        say "The shutdown was cancelled. The computer stays on."
+        if [ "$(count_sessions)" -gt 0 ]; then say "Lidless is still on."; else say "Lidless is off."; fi
+      else
+        rm -f "$RUN/shutdown.pid"
+        say "No shutdown was waiting, so there was nothing to cancel."
+      fi
+      return 0
+      ;;
+    '') ;;
+    *)
+      say "Unknown option \"$1\". Use /lidless-shutdown to shut the computer down, or /lidless-shutdown cancel to stop a shutdown that is waiting."
+      return 0
+      ;;
+  esac
+
+  if shutdown_waiting; then
+    say "A shutdown is already waiting. To stop it, run /lidless-shutdown cancel."
+    return 0
+  fi
+  if ! os_shutdown_check; then
+    say "$OS_ERR"
+    return 0
+  fi
+  rm -f "$RUN/shutdown.pid"
+  detach sh "$DIR/lidless.sh" shutdown-run
+  log "SHUTDOWN in $SHUTDOWN_DELAY seconds, asked for by the user"
+  say "The computer shuts down in $SHUTDOWN_DELAY seconds."
+  say "Lidless stays on until then, so the laptop does not fall asleep first, and turns off for every session as the computer goes down."
+  say "Programs that are still open may lose unsaved work, and every Claude Code session on this computer ends."
+  say "To stop it, run /lidless-shutdown cancel before then."
+  return 0
+}
+
+# The helper behind cmd_shutdown. Started detached, so it outlives the command.
+shutdown_run() {
+  printf '%s|%s\n' "$$" "$(proc_start $$)" > "$RUN/shutdown.pid"
+  trap 'exit 0' TERM INT HUP
+  # Sleep in the background so "cancel" is handled at once.
+  sleep "$SHUTDOWN_DELAY" &
+  wait $!
+  rm -f "$RUN/shutdown.pid"
+  if os_poweroff; then
+    # Only now give the sleep behaviour back. Earlier, a laptop with a closed
+    # lid could fall asleep before it has shut down.
+    lock
+    for _pid in $(sess_list); do
+      end_session "$_pid" "the user asked for a shutdown"
+    done
+    restore_now "the user asked for a shutdown"
+    unlock
+  else
+    log "NOTE the shutdown did not start: ${OS_ERR:-the system refused it}"
+  fi
+  exit 0
+}
+
 usage() {
-  say "Lidless commands: /lidless [limit], /lidless-off, /lidless-status, /lidless-setup"
+  say "Lidless commands: /lidless [limit], /lidless-off, /lidless-status, /lidless-setup, /lidless-shutdown"
 }
 
 main() {
@@ -753,6 +831,8 @@ main() {
     off) shift; cmd_off "$@" ;;
     status) cmd_status ;;
     setup) shift; os_setup "$@" ;;
+    shutdown) shift; cmd_shutdown "$@" ;;
+    shutdown-run) shutdown_run > /dev/null 2>&1 ;;
     reconcile) shift; cmd_reconcile "$@" > /dev/null 2>&1 ;;
     monitor) monitor_main ;;
     *) usage ;;

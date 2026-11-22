@@ -70,6 +70,7 @@ To undo the setup later, run `/lidless-setup remove` on macOS, or `/lidless-setu
 | `/lidless-off` | Turn off for this session. `/lidless-off all` turns it off for every session. |
 | `/lidless-status` | A few short lines: on or off, session count, time left, battery, busy or idle, boot reset, settings, last logged event. |
 | `/lidless-setup` | Print the one-time setup command. |
+| `/lidless-shutdown` | Turn Lidless off for every session and shut the computer down after 60 seconds. Programs that are still open can lose unsaved work. `/lidless-shutdown cancel` stops it while it is waiting. |
 
 If another plugin uses one of these names, the long form always works, for example `/lidless:lidless-off`.
 
@@ -85,7 +86,7 @@ A typical trip: start Claude Code on the laptop, start Remote Control, run `/lid
 
 ## When it turns itself off
 
-Turning off only gives the laptop its normal behaviour back. Lidless never puts the laptop to sleep and never shuts it down.
+Turning off only gives the laptop its normal behaviour back. Lidless never puts the laptop to sleep and never shuts it down by itself. The one exception is `/lidless-shutdown`, and only when you type it.
 
 - **The session ends.** Exit, a closed terminal, a killed Claude Code, a crash. A small background watcher notices within a few seconds. `/clear` does not turn it off.
 - **Restart or shutdown.** Always resets. See "How it works" for what guarantees that on each system.
@@ -137,7 +138,9 @@ This section lists everything the plugin runs, changes and writes, so you can ch
 | Stop, StopFailure | Marks the session idle, or waiting when background work is still running. |
 | SessionEnd | Flags the session as ended so Lidless resets. |
 
-**Commands.** The four commands and the plain language skill may run one thing without asking: the plugin's own `scripts/lidless.sh`. They have no other pre-approved tools. Claude only turns Lidless on, extends it or changes a setting when you ask.
+**Commands.** The five commands and the plain language skill may run one thing without asking: the plugin's own `scripts/lidless.sh`. They have no other pre-approved tools. Claude only turns Lidless on, extends it or changes a setting when you ask.
+
+**Shutdown.** `/lidless-shutdown` is the only part of Lidless that powers the computer off, and it only runs when you type it. The plain language skill is not allowed to run it and is told to point you to the command instead. It waits 60 seconds, so the answer reaches your phone and you can still send `/lidless-shutdown cancel`. On Windows it runs `shutdown.exe /s /t 60` and puts the sleep settings back straight away, and `cancel` runs `shutdown.exe /a`. On Linux a small helper waits and then runs `systemctl poweroff`. On macOS the helper asks System Events to shut down, the same request the Apple menu makes. On Linux and macOS Lidless stays on during the wait, so a laptop with a closed lid does not fall asleep before it has shut down.
 
 **Files it writes.** Everything is in `~/.claude/lidless`: `config.json`, `lidless.log`, and small state files in `sessions`, `busy`, `run` and `state`. On Windows, while Lidless is on, there is also a shortcut named "Lidless reset" in your Startup folder. It is removed when Lidless turns off.
 

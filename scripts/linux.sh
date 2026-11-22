@@ -193,6 +193,19 @@ os_battery() {
 
 os_boot_reset() { echo notneeded; }
 
+os_shutdown_check() {
+  command -v systemctl > /dev/null 2>&1 && return 0
+  OS_ERR="Lidless shuts Linux down with the systemctl command, and this system does not have it. Nothing was changed."
+  return 1
+}
+
+# logind lets the active local login power the computer off without a password.
+os_poweroff() {
+  systemctl poweroff --no-ask-password > /dev/null 2>&1 && return 0
+  OS_ERR="systemctl poweroff was refused. Linux refuses when another user is logged in, or when Claude Code does not run in the laptop's own desktop login."
+  return 1
+}
+
 os_setup() {
   say "No setup is needed on Linux."
   say "Lidless holds its sleep lock inside a running helper process, so a restart, a shutdown or a crash always clears it by itself."

@@ -2,7 +2,11 @@
 name: lidless-control
 description: Control Lidless, the plugin that keeps the user's laptop awake with the lid closed while they work from their phone over Claude Code Remote Control. Use only in Claude Code running on the user's own laptop, when the user asks in plain words to keep the laptop or PC awake, stay awake longer, add time, change or remove the keep-awake time limit, turn Lidless on or off, let the laptop sleep again, or asks how long is left or whether Lidless is on. Also use it to act on a "Lidless notice" in the conversation, or to change a Lidless setting.
 user-invocable: false
-allowed-tools: 'Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/lidless.sh" *)'
+allowed-tools:
+  - 'Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/lidless.sh" on *)'
+  - 'Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/lidless.sh" off*)'
+  - 'Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/lidless.sh" status*)'
+  - 'Bash(sh "${CLAUDE_PLUGIN_ROOT}/scripts/lidless.sh" setup*)'
 ---
 
 # Lidless control
@@ -38,7 +42,8 @@ Limits look like `3h`, `90m`, `1h30m`, or a bare number, which means hours. Turn
 - Only act when the user asks. Do not turn Lidless on, extend it or change a setting on your own initiative.
 - Do not change power settings yourself (`powercfg`, `pmset`, `systemd-inhibit`, `caffeinate`). Lidless tracks what it changed so it can put it back, and changes made around it break that.
 - Do not run the setup command that `setup` prints. It needs administrator or sudo rights and the user runs it by hand at the laptop. Show it in a code block instead.
-- Lidless never puts the laptop to sleep and never shuts it down. Turning it off only gives the laptop its normal behaviour back. If the user wants the laptop to sleep right now, say that turning Lidless off is the way, and that with the lid closed the laptop then sleeps by its own rules.
+- Lidless never puts the laptop to sleep and never shuts it down by itself. Turning it off only gives the laptop its normal behaviour back. If the user wants the laptop to sleep right now, say that turning Lidless off is the way, and that with the lid closed the laptop then sleeps by its own rules.
+- Never shut the computer down yourself, and never run `lidless.sh shutdown`. Shutting down ends every session and can lose unsaved work, so only the user starts it, by typing `/lidless-shutdown`. If the user asks in plain words to shut the laptop down, tell them to send `/lidless-shutdown`, and that `/lidless-shutdown cancel` stops it within 60 seconds.
 - Lidless is per session. Another Claude Code session on the same laptop can keep it awake after this one turns it off. The script says so when that is the case.
 
 ## Lidless notices

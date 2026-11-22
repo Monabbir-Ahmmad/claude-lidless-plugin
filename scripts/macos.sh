@@ -163,6 +163,20 @@ os_boot_reset() {
   if [ -f "$MAC_PLIST" ]; then echo installed; else echo missing; fi
 }
 
+os_shutdown_check() {
+  command -v osascript > /dev/null 2>&1 && return 0
+  OS_ERR="Lidless shuts macOS down with the osascript command, and it was not found. Nothing was changed."
+  return 1
+}
+
+# The same request the Apple menu makes. It needs no password. The first time,
+# macOS asks whether the terminal may control System Events.
+os_poweroff() {
+  osascript -e 'tell application "System Events" to shut down' > /dev/null 2>&1 && return 0
+  OS_ERR="macOS did not accept the shut down request. The first time, macOS asks whether your terminal may control System Events, and that has to be allowed at the laptop."
+  return 1
+}
+
 os_setup() {
   _script=$(cd "$DIR" 2>/dev/null && pwd)/macos-setup.sh
   case ${1:-} in

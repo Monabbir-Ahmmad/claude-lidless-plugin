@@ -5,8 +5,10 @@
 #   lidless.sh off [all]      turn off for this session (or for every session)
 #   lidless.sh status         short status
 #   lidless.sh setup          show the one-time setup command for this OS
+#   lidless.sh shutdown [cancel]   turn off for every session and shut the computer down, or stop that
 #   lidless.sh reconcile      tidy up after sessions that ended (session start and end hooks)
 #   lidless.sh monitor        background watcher (started by "on")
+#   lidless.sh shutdown-run   waits out the shutdown delay (started by "shutdown")
 #
 # The scripts run from the plugin folder. Everything Lidless remembers
 # (settings, sessions, log) lives in ~/.claude/lidless.
@@ -19,7 +21,7 @@ DIR=${0%/*}
 [ "$DIR" = "$0" ] && DIR=.
 
 quiet=0
-case $cmd in reconcile|monitor) quiet=1 ;; esac
+case $cmd in reconcile|monitor|shutdown-run) quiet=1 ;; esac
 
 os=${LIDLESS_OS:-$(uname -s 2>/dev/null)}
 case $os in

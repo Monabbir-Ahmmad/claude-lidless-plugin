@@ -9,6 +9,7 @@
 #   lidless.ps1 off [all]                  turn off for this session (or every session)
 #   lidless.ps1 status                     short status
 #   lidless.ps1 setup                      show the one-time boot reset command
+#   lidless.ps1 shutdown [cancel]          turn off for every session and shut the PC down, or stop that
 #   lidless.ps1 reconcile [sid=<id>]       tidy up after sessions that ended
 #   lidless.ps1 monitor                    hidden background watcher
 #   lidless.ps1 logon-reset                logon fallback (Startup folder shortcut)
@@ -62,6 +63,10 @@ $MonitorErr  = Join-Path $RunDir 'monitor.err'
 $BatteryFile = Join-Path $RunDir 'battery'
 $PsExe       = Join-Path $sysRoot 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $PowerCfg    = Join-Path $sysRoot 'System32\powercfg.exe'
+$ShutdownExe = Join-Path $sysRoot 'System32\shutdown.exe'
+# Seconds between the shutdown command and the PC going down. Long enough for
+# the reply to reach a phone, and for the user to change their mind.
+$ShutdownDelay = 60
 $BootDir     = Join-Path $progFiles 'Lidless'
 
 # The settings Lidless changes: name, subgroup GUID, setting GUID.
@@ -1127,6 +1132,59 @@ function Invoke-Setup {
     Say 'Without it, Lidless still resets at logon and at the next Claude Code start.'
 }
 
+# Turn Lidless off for every session, then let Windows shut the PC down after
+# a short delay. "cancel" stops a shutdown that is still waiting.
+function Invoke-Shutdown($list) {
+    Ensure-Dirs
+    $a = Split-Args $list
+    $spec = $a.Spec.ToLower()
+
+    if (@('cancel', 'abort', 'stop') -contains $spec) {
+        $r = Invoke-Native $ShutdownExe '/a'
+        if ($r.Code -eq 0) {
+            Write-Log 'SHUTDOWN cancelled by the user'
+            Say 'The shutdown was cancelled. The PC stays on.'
+            if ((Get-Sessions).Count -eq 0) { Say 'Lidless is off. Run /lidless to keep the laptop awake with the lid closed again.' }
+            else { Say 'Lidless is still on.' }
+        } else {
+            Say 'No shutdown was waiting, so there was nothing to cancel.'
+        }
+        return
+    }
+    if ($spec -ne '') {
+        Say ('Unknown option "{0}". Use /lidless-shutdown to shut the PC down, or /lidless-shutdown cancel to stop a shutdown that is waiting.' -f $a.Spec)
+        return
+    }
+
+    # Ask Windows first. If it refuses, Lidless stays exactly as it was.
+    $note = 'Lidless: shutdown asked for from Claude Code. To stop it, run /lidless-shutdown cancel.'
+    $r = Invoke-Native $ShutdownExe ('/s /t {0} /c "{1}"' -f $ShutdownDelay, $note)
+    if ($r.Code -eq 1190) {
+        Say 'A shutdown is already waiting. To stop it, run /lidless-shutdown cancel.'
+        return
+    }
+    if ($r.Code -ne 0) {
+        Say ('Windows refused the shutdown request (code {0}), so nothing was changed and Lidless is as it was.' -f $r.Code)
+        return
+    }
+
+    $count = 0
+    Lock-State
+    try {
+        foreach ($s in (Get-Sessions)) { End-Session $s 'the user asked for a shutdown'; $count++ }
+        Restore-All 'the user asked for a shutdown'
+    } finally {
+        Unlock-State
+    }
+    Write-Log ("SHUTDOWN in {0} seconds, asked for by the user" -f $ShutdownDelay)
+
+    Say ("The PC shuts down in {0} seconds." -f $ShutdownDelay)
+    if ($count -gt 0) { Say 'Lidless is OFF for every session, and the normal sleep settings are back.' }
+    else { Say 'Lidless was already off.' }
+    Say 'Programs that are still open are closed without saving, and every Claude Code session on this PC ends.'
+    Say 'To stop it, run /lidless-shutdown cancel before then.'
+}
+
 function Test-Admin {
     $id = [Security.Principal.WindowsIdentity]::GetCurrent()
     $pr = New-Object Security.Principal.WindowsPrincipal($id)
@@ -1203,12 +1261,13 @@ try {
         'off'               { Invoke-Off $rest }
         'status'            { Invoke-Status }
         'setup'             { Invoke-Setup }
+        'shutdown'          { Invoke-Shutdown $rest }
         'reconcile'         { Invoke-Reconcile $rest }
         'monitor'           { Start-MonitorLoop }
         'logon-reset'       { Invoke-LogonReset }
         'install-boot-task' { Install-BootTask $rest }
         'remove-boot-task'  { Remove-BootTask $rest }
-        default             { Say 'Lidless commands: /lidless [limit], /lidless-off, /lidless-status, /lidless-setup' }
+        default             { Say 'Lidless commands: /lidless [limit], /lidless-off, /lidless-status, /lidless-setup, /lidless-shutdown' }
     }
 } catch {
     $text = $_.Exception.Message
